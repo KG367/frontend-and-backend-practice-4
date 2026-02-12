@@ -1,0 +1,26 @@
+body {
+  background-color: #303030;
+  color: white;
+}
+
+.card {
+  border: 2px solid #001284;
+  border-radius: 10px;
+  padding: 10px;
+  padding-top: 0px;
+  width: 30%;
+  transition-duration: 1s;
+}
+
+.card:hover {
+  transform: translateY(-10px);
+}
+
+.card__picture {
+  border: 2px solid #001284;
+  max-width: 90%;
+  height: auto;
+  object-fit: contain;
+}
+
+/*# sourceMappingURL=index.css.map */
