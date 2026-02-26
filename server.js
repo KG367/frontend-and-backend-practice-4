@@ -94,15 +94,21 @@ function findUserOr404(id, res) {
     return user;
 }
 
-/**
+ /**
  * @swagger
  * /api/users:
  *   get:
- *     summary: Получить список пользователей
+ *     summary: Возвращает список всех пользователей
  *     tags: [Users]
  *     responses:
  *       200:
  *         description: Список пользователей
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/User'
  */
 app.get("/api/users", (req, res) => {
     res.json(users);
@@ -112,8 +118,28 @@ app.get("/api/users", (req, res) => {
  * @swagger
  * /api/users/{id}:
  *   get:
- *     summary: Получить пользователя по ID
+ *     summary: Получает пользователя по ID
  *     tags: [Users]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID пользователя
+ *     responses:
+ *       200:
+ *         description: Данные пользователя
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/User'
+ *       404:
+ *         description: Пользователь не найден
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 app.get("/api/users/:id", (req, res) => {
     const user = findUserOr404(req.params.id, res);
@@ -125,8 +151,39 @@ app.get("/api/users/:id", (req, res) => {
  * @swagger
  * /api/users:
  *   post:
- *     summary: Создать пользователя
+ *     summary: Создать нового пользователя
  *     tags: [Users]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - age
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 description: Имя пользователя
+ *                 example: "Петр"
+ *               age:
+ *                 type: integer
+ *                 description: Возраст пользователя
+ *                 example: 22
+ *     responses:
+ *       201:
+ *         description: Пользователь успешно создан
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/User'
+ *       400:
+ *         description: Неверные данные запроса
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 app.post("/api/users", (req, res) => {
     const { name, age } = req.body;
@@ -149,8 +206,49 @@ app.post("/api/users", (req, res) => {
  * @swagger
  * /api/users/{id}:
  *   patch:
- *     summary: Обновить пользователя
+ *     summary: Частично обновить данные пользователя
  *     tags: [Users]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID пользователя
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 description: Новое имя пользователя
+ *                 example: "Петр Петров"
+ *               age:
+ *                 type: integer
+ *                 description: Новый возраст пользователя
+ *                 example: 23
+ *     responses:
+ *       200:
+ *         description: Пользователь успешно обновлен
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/User'
+ *       400:
+ *         description: Не указаны поля для обновления
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Пользователь не найден
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 app.patch("/api/users/:id", (req, res) => {
     const user = findUserOr404(req.params.id, res);
@@ -170,6 +268,22 @@ app.patch("/api/users/:id", (req, res) => {
  *   delete:
  *     summary: Удалить пользователя
  *     tags: [Users]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID пользователя
+ *     responses:
+ *       204:
+ *         description: Пользователь успешно удален (нет тела ответа)
+ *       404:
+ *         description: Пользователь не найден
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 app.delete("/api/users/:id", (req, res) => {
     const id = req.params.id;
