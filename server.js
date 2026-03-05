@@ -33,6 +33,38 @@ let users = [
     {id: nanoid(6), name: 'Дарья', age: 20},
 ];
 
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     User:
+ *       type: object
+ *       required:
+ *         - name
+ *         - age
+ *       properties:
+ *         id:
+ *           type: string
+ *           description: Автоматически сгенерированный уникальный ID пользователя
+ *           example: "abc123"
+ *         name:
+ *           type: string
+ *           description: Имя пользователя
+ *           example: "Иван"
+ *         age:
+ *           type: integer
+ *           description: Возраст пользователя
+ *           example: 25
+ *     Error:
+ *       type: object
+ *       properties:
+ *         error:
+ *           type: string
+ *           description: Сообщение об ошибке
+ *           example: "User not found"
+ */
+
+
 // Swagger definition
 // Описание основного API
 const swaggerOptions = {
@@ -98,7 +130,7 @@ function findUserOr404(id, res) {
  * @swagger
  * /api/users:
  *   get:
- *     summary: Возвращает список всех пользователей
+ *     summary: Список всех пользователей
  *     tags: [Users]
  *     responses:
  *       200:
@@ -118,7 +150,7 @@ app.get("/api/users", (req, res) => {
  * @swagger
  * /api/users/{id}:
  *   get:
- *     summary: Получает пользователя по ID
+ *     summary: Получить пользователя по ID
  *     tags: [Users]
  *     parameters:
  *       - in: path
