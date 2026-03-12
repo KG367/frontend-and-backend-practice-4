@@ -2,14 +2,18 @@ const express = require("express");
 const cors = require("cors");
 const { nanoid } = require("nanoid");
 const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 
 // Подключаем Swagger
 const swaggerJsdoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
 const { preinitModule } = require("react-dom");
+const { use } = require("react");
 
 const app = express();
 const port = 3000;
+const JWT_SECRET = "secret_secret";
+const ACCESS_EXPIRES = "15m";
 
 app.use(express.json());
 
@@ -29,11 +33,15 @@ app.use((req, res, next) => {
     next();
 });
 
-let users = [
-    { id: nanoid(6), email: "petr@petrov.org", first_name: 'Петр', last_name: "Петров", password: bcrypt.hash("1", 10) },
-    { id: nanoid(6), email: "ivan@petrov.org", first_name: 'Иван', last_name: "Иванов", password: bcrypt.hash("2", 10) },
-    { id: nanoid(6), email: "ivan_petrov@petrov.org", first_name: 'Иван', last_name: "Петров", password: bcrypt.hash("3", 10) }, // 2
-];
+let users = [];
+
+(async () => {
+    users = [
+        { id: nanoid(6), username: "petr@petrov.org", password: await bcrypt.hash("1", 10) },
+        { id: nanoid(6), username: "ivan@petrov.org", password: await bcrypt.hash("2", 10) },
+        { id: nanoid(6), username: "ivan_petrov@petrov.org", password: await bcrypt.hash("3", 10) },
+    ]
+})().then();
 
 let products = [
     {
@@ -67,31 +75,16 @@ let products = [
  *       type: object
  *       required:
  *         - id
- *         - email
- *         - first_name
- *         - last_name
- *         - password
+ *         - username
  *       properties:
  *         id:
  *           type: string
  *           description: Автоматически сгенерированный уникальный ID пользователя
  *           example: "abc123"
- *         email:
- *            type: string
- *            description: Почта пользователя
- *            example: "a@email.com"
- *         first_name:
- *            type: string
- *            description: Имя пользователя
- *            example: "Петр"
- *         last_name:
- *            type: string
- *            description: Фамилия пользователя
- *            example: "Иванов"
- *         password:
- *            type: string
- *            description: Хеш пароля пользователя
- *            example: "$2a$10$JjvRoDEDGGsYr2jb76avhOuD1NfRoHcJ4uYD6j8BbVWFpRu8Lfk2i" 
+ *         username:
+ *           type: string
+ *           description: Имя пользователя
+ *           example: "LaughtLover"
  *     Product:
  *       required:
  *         - id
@@ -156,8 +149,82 @@ const swaggerSpec = swaggerJsdoc(swaggerOptions);
 // Подключаем Swagger UI по адресу /api-docs
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-function findUserOr404(email, res) {
-    const user = users.find(u => u.email === email);
+// for auth
+function authMiddleware(req, res, next) {
+    const header = req.headers.authorization || "";
+
+    // header должен быть вида: "Bearer eyJhbGciOi..."
+    const [scheme, token] = header.split(" ");
+
+    // 1) Нет "Bearer" или нет токена → сразу 401
+    if (scheme !== "Bearer" || !token) {
+        return res.status(401).json({
+            error: "auth_header_missing",
+            message: "Нужен заголовок Authorization: Bearer <token>",
+        });
+    }
+
+    try {
+        // 2) Проверяем подпись токена и срок действия (exp)
+        const payload = jwt.verify(token, JWT_SECRET);
+
+        // payload — это объект, который мы подписали при логине.
+        // Например: { sub: userId, email, iat, exp }
+        req.user = payload;
+
+        // 3) Пропускаем запрос дальше → к защищённому обработчику
+        next();
+    } catch (err) {
+        // Сюда попадём, если токен:
+        // - подделан
+        // - протух (expired)
+        // - подписан другим секретом
+        return res.status(401).json({
+            error: "token_invalid",
+            message: "Токен недействителен или срок действия истёк",
+        });
+    }
+}
+
+/**
+ * @swagger
+ * /api/auth/me:
+ *   post:
+ *     summary: Получить информацию о себе
+ *     tags: [Auth]
+ *     responses:
+ *       200:
+ *         description: Данные успешно получены
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/User'
+ *       404:
+ *         description: Неверный токен
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+
+app.get("/api/auth/me", authMiddleware, (req, res) => {
+    // sub мы положили в токен при login
+    const userId = req.user.sub;
+    const user = users.find(u => u.id === userId);
+    if (!user) {
+        return res.status(404).json({
+            error: "User not found",
+        });
+    }
+    // никогда не возвращаем passwordHash
+    res.json({
+        id: user.id,
+        username: user.username,
+    });
+});
+
+function findUserOr404(username, res) {
+    const user = users.find(u => u.username === username);
     if (!user) {
         res.status(404).json({ error: "User not found" });
         return null;
@@ -178,23 +245,13 @@ function findUserOr404(email, res) {
  *           schema:
  *             type: object
  *             required:
- *               - email
- *               - first_name
- *               - last_name
+ *               - username
  *               - password
  *             properties:
- *               email:
- *                 type: string
- *                 description: Почта пользователя
- *                 example: "a@email.com"
- *               first_name:
- *                 type: string
- *                 description: Имя пользователя
- *                 example: "Петр"
- *               last_name:
- *                 type: string
- *                 description: Фамилия пользователя
- *                 example: "Иванов"
+ *               username:
+ *                type: string
+ *                description: Имя пользователя
+ *                example: "SuperVova2003"
  *               password:
  *                 type: string
  *                 description: Пароль пользователя
@@ -214,22 +271,20 @@ function findUserOr404(email, res) {
  *               $ref: '#/components/schemas/Error'
  */
 app.post("/api/auth/register", (req, res) => {
-    const { email, first_name, last_name, password } = req.body;
+    const { username, password } = req.body;
 
-    if (!email || !first_name || !last_name || !password) {
-        return res.status(400).json({ error: "Email, fisrt name, last name and password are required" });
+    if (!username || !password) {
+        return res.status(400).json({ error: "Username and password are required" });
     }
 
     const newUser = {
         id: nanoid(6),
-        email: email.trim(),
-        first_name: first_name.trim(),
-        last_name: last_name.trim(),
+        username: username.trim(),
         password: bcrypt(password, 10)
     };
 
     users.push(newUser);
-    res.status(201).json(newUser);
+    res.status(201).json({ id: newUser.id, username: newUser.id });
 });
 
 async function verifyPassword(password, passwordHash) {
@@ -253,10 +308,10 @@ async function verifyPassword(password, passwordHash) {
  *               - username
  *               - password
  *             properties:
- *               email:
+ *               username:
  *                 type: string
- *                 description: Почта пользователя
- *                 example: "a@email.com"
+ *                 description: Имя пользователя
+ *                 example: "McGog"
  *               password:
  *                 type: string
  *                 description: Пароль пользователя
@@ -264,14 +319,6 @@ async function verifyPassword(password, passwordHash) {
  *     responses:
  *       200:
  *         description: Успешная авторизация
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 login:
- *                   type: boolean
- *                   example: true
  *       400:
  *         description: Отсутствуют обязательные поля
  *       401:
@@ -281,18 +328,28 @@ async function verifyPassword(password, passwordHash) {
  */
 
 app.post("/api/auth/login", async (req, res) => {
-    const { username: email, password } = req.body;
+    const { username, password } = req.body;
 
-    if (!email || !password) {
+    if (!username || !password) {
         return res.status(400).json({ error: "username and password are required" });
     }
 
-    const user = findUserOr404(email, res);
+    const user = findUserOr404(username, res);
     if (!user) return;
 
-    isAuthentethicated = await verifyPassword(password, user.hashedPassword);
+    const isAuthentethicated = await verifyPassword(password, user.password);
     if (isAuthentethicated) {
-        res.status(200).json({ login: true });
+        const token = jwt.sign(
+            {
+                sub: user.id,
+                username: user.username,
+            },
+            JWT_SECRET,
+            {
+                expiresIn: ACCESS_EXPIRES,
+            }
+        );
+        res.json({ token });
     }
     else {
         res.status(401).json({ error: "not authentethicated" })
@@ -423,10 +480,14 @@ function findProductOr404(id, res) {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-app.get("/api/products/:id", (req, res) => {
-    const product = findProductOr404(req.params.id, res);
-    if (!product) return;
-    res.json(product);
+app.get("/api/products/:id", authMiddleware, (req, res, next) => {
+    try {
+        const product = findProductOr404(req.params.id, res);
+        if (!product) return;
+        res.json(product);
+    } catch (err) {
+        next(err);
+    }
 });
 
 /**
@@ -480,7 +541,7 @@ app.get("/api/products/:id", (req, res) => {
  *               $ref: '#/components/schemas/Error'
  */
 
-app.put("/api/products/:id", (req, res) => {
+app.put("/api/products/:id", authMiddleware, (req, res) => {
     const product = findProductOr404(req.params.id, res);
     if (!product) return;
 
@@ -491,7 +552,7 @@ app.put("/api/products/:id", (req, res) => {
     if (description !== undefined) product.description = description.trim();
     if (price !== undefined) product.price = Number(price);
 
-    res.json(user);
+    res.json(product);
 });
 
 /**
@@ -517,7 +578,7 @@ app.put("/api/products/:id", (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-app.delete("/api/products/:id", (req, res) => {
+app.delete("/api/products/:id", authMiddleware, (req, res) => {
     const id = req.params.id;
 
     const exists = users.some((u) => u.id === id);
