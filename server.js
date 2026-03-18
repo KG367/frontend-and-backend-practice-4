@@ -12,8 +12,12 @@ const { use } = require("react");
 
 const app = express();
 const port = 3000;
-const JWT_SECRET = "secret_secret";
+
+const ACCESS_SECRET = "secret_secret";
+const REFRESH_SECRET = "very_secret_secret";
+
 const ACCESS_EXPIRES = "15m";
+const REFRESH_EXPIRES = "1d";
 
 app.use(express.json());
 
@@ -32,14 +36,14 @@ app.use((req, res, next) => {
     });
     next();
 });
-
+ 
 let users = [];
 
 (async () => {
     users = [
-        { id: nanoid(6), username: "petr@petrov.org", password: await bcrypt.hash("1", 10) },
-        { id: nanoid(6), username: "ivan@petrov.org", password: await bcrypt.hash("2", 10) },
-        { id: nanoid(6), username: "ivan_petrov@petrov.org", password: await bcrypt.hash("3", 10) },
+        { id: nanoid(6), username: "petr", password: await bcrypt.hash("1", 10) },
+        { id: nanoid(6), username: "ivan", password: await bcrypt.hash("2", 10) },
+        { id: nanoid(6), username: "ivan_petrov", password: await bcrypt.hash("3", 10) },
     ]
 })().then();
 
@@ -166,7 +170,7 @@ function authMiddleware(req, res, next) {
 
     try {
         // 2) Проверяем подпись токена и срок действия (exp)
-        const payload = jwt.verify(token, JWT_SECRET);
+        const payload = jwt.verify(token, ACCESS_SECRET);
 
         // payload — это объект, который мы подписали при логине.
         // Например: { sub: userId, email, iat, exp }
@@ -189,7 +193,7 @@ function authMiddleware(req, res, next) {
 /**
  * @swagger
  * /api/auth/me:
- *   post:
+ *   get:
  *     summary: Получить информацию о себе
  *     tags: [Auth]
  *     responses:
@@ -270,7 +274,7 @@ function findUserOr404(username, res) {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-app.post("/api/auth/register", (req, res) => {
+app.post("/api/auth/register", async (req, res) => {
     const { username, password } = req.body;
 
     if (!username || !password) {
@@ -280,7 +284,7 @@ app.post("/api/auth/register", (req, res) => {
     const newUser = {
         id: nanoid(6),
         username: username.trim(),
-        password: bcrypt(password, 10)
+        password: await bcrypt.hash(password, 10)
     };
 
     users.push(newUser);
@@ -290,6 +294,8 @@ app.post("/api/auth/register", (req, res) => {
 async function verifyPassword(password, passwordHash) {
     return bcrypt.compare(password, passwordHash);
 }
+
+const refreshTokens = new Set();
 
 /**
  * @swagger
@@ -319,10 +325,15 @@ async function verifyPassword(password, passwordHash) {
  *     responses:
  *       200:
  *         description: Успешная авторизация
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 accessToken: {type: string}
+ *                 refreshToken: {type: string}
  *       400:
  *         description: Отсутствуют обязательные поля
- *       401:
- *         description: Неверные учетные данные
  *       404:
  *         description: Пользователь не найден
  */
@@ -339,20 +350,130 @@ app.post("/api/auth/login", async (req, res) => {
 
     const isAuthentethicated = await verifyPassword(password, user.password);
     if (isAuthentethicated) {
-        const token = jwt.sign(
+        const accessToken = jwt.sign(
             {
                 sub: user.id,
                 username: user.username,
             },
-            JWT_SECRET,
+            ACCESS_SECRET,
             {
-                expiresIn: ACCESS_EXPIRES,
+                expiresIn: ACCESS_EXPIRES
             }
         );
-        res.json({ token });
+        const refreshToken = jwt.sign(
+            {
+                sub: user.id, username: user.username,
+            },
+            REFRESH_SECRET,
+            {
+                expiresIn: REFRESH_EXPIRES
+            }
+        )
+        refreshTokens.add(refreshToken);
+        res.json({ "accessToken": accessToken, "refreshToken": refreshToken });
     }
     else {
         res.status(401).json({ error: "not authentethicated" })
+    }
+});
+
+/**
+ * @swagger
+ * /api/auth/refresh:
+ *   post:
+ *     summary: Обновление токенов
+ *     tags: [Auth]
+ *     parameters:
+ *       - in: header
+ *         description: Refresh-token
+ *         name: refresh-token
+ *         required: f
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Новые токены
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 accessToken: { type: string }
+ *                 refreshToken: { type: string }
+ *       400:
+ *         description: Не передан refresh-токен
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Refresh-токен неверен.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Пользователь не найден
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+app.post("/api/auth/refresh", (req, res) => {
+    const refreshToken = req.body?.refreshToken;
+
+    if (!refreshToken) {
+        return res.status(400).json({
+            error: "refresh_token_required",
+        });
+    }
+
+    if (!refreshTokens.has(refreshToken)) {
+        return res.status(401).json({
+            error: "invalid_refresh_token",
+        });
+    }
+
+    try {
+        const payload = jwt.verify(refreshToken, REFRESH_SECRET);
+
+        const user = users.find((u) => u.id === payload.sub);
+        if (!user) {
+            return res.status(404).json({
+                error: "user_not_found",
+            });
+        }
+
+        refreshTokens.delete(refreshToken);
+
+        const accessToken = jwt.sign(
+            {
+                sub: user.id,
+                username: user.username,
+            },
+            ACCESS_SECRET,
+            {
+                expiresIn: ACCESS_EXPIRES
+            }
+        );
+        const newRefreshToken = jwt.sign(
+            {
+                sub: user.id, username: user.username,
+            },
+            REFRESH_SECRET,
+            {
+                expiresIn: REFRESH_EXPIRES
+            }
+        )
+
+        refreshTokens.add(newRefreshToken);
+
+        return res.json({ accessToken: accessToken, refreshToken: newRefreshToken });
+    } catch (err) {
+        refreshTokens.delete(refreshToken);
+        return res.status(401).json({
+            error: "refresh_token_invalid_or_expired",
+            message: "Refresh-токен недействителен или срок действия истёк",
+        });
     }
 });
 
@@ -562,7 +683,7 @@ app.put("/api/products/:id", authMiddleware, (req, res) => {
  *     summary: Удалить товар
  *     tags: [Products]
  *     parameters:
- *       - in: path
+ *       - in: path 
  *         name: id
  *         required: true
  *         schema:
