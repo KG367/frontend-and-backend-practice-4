@@ -8,29 +8,57 @@ const apiClient = axios.create({
     }
 });
 
+apiClient.interceptors.request.use(
+    (config) => {
+        const accessToken = localStorage.getItem("accessToken");
+        if (accessToken) {
+            config.headers.Authorization = `Bearer ${accessToken}`;
+        }
+        return config;
+    },
+    (error) => Promise.reject(error)
+);
+
 export const api = {
+    apiClient,
 
-    createUser: async (user) => {
-        let response = await apiClient.post("/users", user);
-        return response.data;
+    createProduct: async (product) => {
+        return (await apiClient.post("/products", product)).data;
     },
 
-    getUsers: async () => {
-        let response = await apiClient.get("/users");
-        return response.data;
+    getProducts: async () => {
+        return (await apiClient.get("/products")).data;
     },
 
-    getUserById: async (id) => {
-        let response = await apiClient.get(`/users/${id}`);
-        return response.data;
+    getProductById: async (id) => {
+        return (await apiClient.get(`/products/${id}`)).data;
     },
 
-    updateUser: async (id, user) => {
-        let response = await apiClient.patch(`/users/${id}`, user);
-        return response.data;
+    updateProduct: async (id, product) => {
+        return (await apiClient.put(`/products/${id}`, product)).data;
     },
 
-    deleteUser: async (id) => {
-        await apiClient.delete(`/users/${id}`);
+    deleteProduct: async (id) => {
+        return (await apiClient.delete(`/products/${id}`)).data;
+    },
+
+    getMe: async () => {
+        return (await apiClient.get("/auth/me")).data
+    },
+
+    addUser: async (username, password) => {
+        return (await apiClient.post("/auth/register", { "username": username, "password": password })).data
+    },
+
+    logUser: async (username, password) => {
+        return (await apiClient.post("/auth/login",
+            {
+                "username": username,
+                "password": password
+            })).data
+    },
+
+    refreshToken: async () => {
+        return (await apiClient.post("/auth/refresh", { "refreshToken": localStorage.getItem("refreshToken") })).data
     }
 }

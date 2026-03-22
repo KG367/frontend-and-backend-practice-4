@@ -1,18 +1,18 @@
-import React, { useEffect, useState } from "react";  
+import React, { useEffect, useState } from "react";
   
-export default function UserModal({ open, mode, initialUser, onClose, onSubmit }) {  
-    const [name, setName] = useState("");  
-    const [age, setAge] = useState("");  
-  
-    useEffect(() => {  
-        if (!open) return;  
-        setName(initialUser?.name ?? "");  
-        setAge(initialUser?.age != null ? String(initialUser.age) : "");  
-    }, [open, initialUser]);  
-  
-    if (!open) return null;  
-  
-    const title = mode === "edit" ? "Редактирование пользователя" : "Создание пользователя";  
+export default function ProductModal({ open, mode, inititalProduct, onClose, onSubmit }) {
+    const [name, setName] = useState("");
+    const [age, setAge] = useState("");
+
+    useEffect(() => {
+        if (!open) return;
+        setName(inititalProduct?.name ?? "");
+        setAge(inititalProduct?.age != null ? String(inititalProduct.age) : "");
+    }, [open, inititalProduct]);
+
+    if (!open) return null;
+
+    const title = mode === "edit" ? "Редактирование товара" : "Создание товара";
   
     const handleSubmit = (e) => {  
         e.preventDefault();  
@@ -20,7 +20,7 @@ export default function UserModal({ open, mode, initialUser, onClose, onSubmit }
         const trimmed = name.trim();  
         const parsedAge = Number(age);  
   
-        if (!trimmed) {  
+        if (!trimmed) {
             alert("Введите имя");  
             return;  
         }  
@@ -30,7 +30,7 @@ export default function UserModal({ open, mode, initialUser, onClose, onSubmit }
         }  
   
         onSubmit({  
-            id: initialUser?.id,  
+            id: inititalProduct?.id,  
             name: trimmed,  
             age: parsedAge,  
         });  
