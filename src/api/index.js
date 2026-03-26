@@ -11,9 +11,8 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use(
     (config) => {
         const accessToken = localStorage.getItem("accessToken");
-        if (accessToken) {
+        if (accessToken && !config.headers.Authorization)
             config.headers.Authorization = `Bearer ${accessToken}`;
-        }
         return config;
     },
     (error) => Promise.reject(error)
@@ -60,5 +59,13 @@ export const api = {
 
     refreshToken: async () => {
         return (await apiClient.post("/auth/refresh", { "refreshToken": localStorage.getItem("refreshToken") })).data
+    },
+
+    getAllUsers: async () => {
+        return (await apiClient.get("/auth/users")).data;
+    },
+
+    updateUser: async (id, user) => {
+        return (await apiClient.post(`/auth/users/${user.id}`, user)).data;
     }
 }

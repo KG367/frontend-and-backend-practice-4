@@ -36,14 +36,14 @@ app.use((req, res, next) => {
     });
     next();
 });
- 
+
 let users = [];
 
 (async () => {
     users = [
-        { id: nanoid(6), username: "petr", password: await bcrypt.hash("1", 10) },
-        { id: nanoid(6), username: "ivan", password: await bcrypt.hash("2", 10) },
-        { id: nanoid(6), username: "ivan_petrov", password: await bcrypt.hash("3", 10) },
+        { id: nanoid(6), username: "petr", password: await bcrypt.hash("1", 10), role: 'admin' },
+        { id: nanoid(6), username: "ivan", password: await bcrypt.hash("2", 10), role: 'seller' },
+        { id: nanoid(6), username: "ivan_petrov", password: await bcrypt.hash("3", 10), role: 'user' },
     ]
 })().then();
 
@@ -190,6 +190,17 @@ function authMiddleware(req, res, next) {
     }
 }
 
+function roleMiddleware(allowedRoles) {
+    return (req, res, next) => {
+        if (!req.user || !allowedRoles.includes(req.user.role)) {
+            return res.status(403).json({
+                error: 'Forbidden'
+            });
+        }
+        next();
+    };
+}
+
 /**
  * @swagger
  * /api/auth/me:
@@ -224,12 +235,23 @@ app.get("/api/auth/me", authMiddleware, (req, res) => {
     res.json({
         id: user.id,
         username: user.username,
+        role: user.role
     });
 });
 
 function findUserOr404(username, res) {
     const user = users.find(u => u.username === username);
     if (!user) {
+        res.status(404).json({ error: "User not found" });
+        return null;
+    }
+    return user;
+}
+
+function findUserByIdOr404(id, res) {
+    const user = users.find(u => u.id === id);
+    if (!user) {
+        console.log(user, id, users);
         res.status(404).json({ error: "User not found" });
         return null;
     }
@@ -275,20 +297,28 @@ function findUserOr404(username, res) {
  *               $ref: '#/components/schemas/Error'
  */
 app.post("/api/auth/register", async (req, res) => {
-    const { username, password } = req.body;
+    const { username, password, role } = req.body;
 
     if (!username || !password) {
         return res.status(400).json({ error: "Username and password are required" });
     }
 
+    const exists = users.some((u) => u.username === username);
+    if (exists) {
+        return res.status(409).json({
+            error: "username already exists",
+        });
+    }
+
     const newUser = {
         id: nanoid(6),
         username: username.trim(),
-        password: await bcrypt.hash(password, 10)
+        password: await bcrypt.hash(password, 10),
+        role: role || 'user'
     };
 
     users.push(newUser);
-    res.status(201).json({ id: newUser.id, username: newUser.id });
+    res.status(201).json({ id: newUser.id, username: newUser.id, role: newUser.role });
 });
 
 async function verifyPassword(password, passwordHash) {
@@ -349,32 +379,33 @@ app.post("/api/auth/login", async (req, res) => {
     if (!user) return;
 
     const isAuthentethicated = await verifyPassword(password, user.password);
-    if (isAuthentethicated) {
-        const accessToken = jwt.sign(
-            {
-                sub: user.id,
-                username: user.username,
-            },
-            ACCESS_SECRET,
-            {
-                expiresIn: ACCESS_EXPIRES
-            }
-        );
-        const refreshToken = jwt.sign(
-            {
-                sub: user.id, username: user.username,
-            },
-            REFRESH_SECRET,
-            {
-                expiresIn: REFRESH_EXPIRES
-            }
-        )
-        refreshTokens.add(refreshToken);
-        res.json({ "accessToken": accessToken, "refreshToken": refreshToken });
+
+    if (!isAuthentethicated) {
+        return res.status(401).json({ error: "not authentethicated" });
     }
-    else {
-        res.status(401).json({ error: "not authentethicated" })
-    }
+
+    const accessToken = jwt.sign(
+        {
+            sub: user.id,
+            username: user.username,
+            role: user.role
+        },
+        ACCESS_SECRET,
+        {
+            expiresIn: ACCESS_EXPIRES
+        }
+    );
+    const refreshToken = jwt.sign(
+        {
+            sub: user.id, username: user.username, role: user.role
+        },
+        REFRESH_SECRET,
+        {
+            expiresIn: REFRESH_EXPIRES
+        }
+    )
+    refreshTokens.add(refreshToken);
+    res.json({ "accessToken": accessToken, "refreshToken": refreshToken });
 });
 
 /**
@@ -449,6 +480,7 @@ app.post("/api/auth/refresh", (req, res) => {
             {
                 sub: user.id,
                 username: user.username,
+                role: user.role
             },
             ACCESS_SECRET,
             {
@@ -457,7 +489,7 @@ app.post("/api/auth/refresh", (req, res) => {
         );
         const newRefreshToken = jwt.sign(
             {
-                sub: user.id, username: user.username,
+                sub: user.id, username: user.username, role: user.role
             },
             REFRESH_SECRET,
             {
@@ -475,6 +507,81 @@ app.post("/api/auth/refresh", (req, res) => {
             message: "Refresh-токен недействителен или срок действия истёк",
         });
     }
+});
+
+/**
+* @swagger
+* /api/users:
+*   get:
+*     summary: Список всех пользователей
+*     tags: [Auth]
+*     responses:
+*       200:
+*         description: Список пользователей
+*         content:
+*           application/json:
+*             schema:
+*               type: array
+*               items:
+*                 $ref: '#/components/schemas/User'
+*/
+app.get("/api/auth/users", authMiddleware, roleMiddleware(['admin']), (req, res) => {
+    res.json(users);
+});
+
+/**
+ * @swagger
+ * /api/products/{id}:
+ *   put:
+ *     summary: Обновить параметры пользователя
+ *     tags: [Auth]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID пользователя
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 description: Новое имя пользователя
+ *                 example: "Петр Петров"
+ *               role:
+ *                 type: string
+ *                 description: Новая роль пользователя
+ *                 example: "user"
+ *     responses:
+ *       200:
+ *         description: Пользователь успешно обновлен
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/User'
+ *       404:
+ *         description: Товар не найден
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+
+app.post("/api/auth/users/:id", authMiddleware, roleMiddleware(['admin']), (req, res) => {
+    const user = findUserByIdOr404(req.params.id, res);
+    if (!user) return;
+
+    const { name, role } = req.body;
+
+    if (name !== undefined) user.name = name.trim();
+    if (role !== undefined) user.role = role.trim();
+
+    res.json(user);
 });
 
 /**
@@ -526,7 +633,7 @@ app.post("/api/auth/refresh", (req, res) => {
  *               $ref: '#/components/schemas/Error'
 */
 
-app.post("/api/products", (req, res) => {
+app.post("/api/products", roleMiddleware("seller", "admin"), (req, res) => {
     const { title, category, description, price } = req.body;
 
     if (!title || !category || !description || price === undefined) {
@@ -561,7 +668,8 @@ app.post("/api/products", (req, res) => {
 *               items:
 *                 $ref: '#/components/schemas/Product'
 */
-app.get("/api/products", (req, res) => {
+// roleMiddleware не настроена, так как это должно быть доступно для всех авторизованных
+app.get("/api/products", authMiddleware, (req, res) => {
     res.json(products);
 });
 
@@ -601,6 +709,7 @@ function findProductOr404(id, res) {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
+// roleMiddleware не настроена, так как это должно быть доступно для всех авторизованных
 app.get("/api/products/:id", authMiddleware, (req, res, next) => {
     try {
         const product = findProductOr404(req.params.id, res);
@@ -662,7 +771,7 @@ app.get("/api/products/:id", authMiddleware, (req, res, next) => {
  *               $ref: '#/components/schemas/Error'
  */
 
-app.put("/api/products/:id", authMiddleware, (req, res) => {
+app.put("/api/products/:id", authMiddleware, roleMiddleware(['seller', 'admin']), (req, res) => {
     const product = findProductOr404(req.params.id, res);
     if (!product) return;
 
@@ -683,7 +792,7 @@ app.put("/api/products/:id", authMiddleware, (req, res) => {
  *     summary: Удалить товар
  *     tags: [Products]
  *     parameters:
- *       - in: path 
+ *       - in: path
  *         name: id
  *         required: true
  *         schema:
@@ -699,7 +808,7 @@ app.put("/api/products/:id", authMiddleware, (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-app.delete("/api/products/:id", authMiddleware, (req, res) => {
+app.delete("/api/products/:id", authMiddleware, roleMiddleware(['admin']), (req, res) => {
     const id = req.params.id;
 
     const exists = users.some((u) => u.id === id);

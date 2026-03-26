@@ -5,26 +5,27 @@ import ProductsList from "../../components/ProductsList";
 import ProductModal from "../../components/ProductModal";
 import { api } from "../../api";
 import UserCard from "../../components/UserCard";
+import UserItem from "../../components/UserItem";
+import UserModal from "../../components/UserModal";
 
 export default function ProductsPage() {
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
 
     const [modalOpen, setModalOpen] = useState(false);
-    const [modalMode, setModalMode] = useState("create"); // create | edit  
+    const [modalMode, setModalMode] = useState("create"); // create | edit
     const [editingProduct, setEditingProduct] = useState(null);
+
+    const [editingUser, setEditingUser] = useState(null);
 
     const [user, setUser] = useState(null);
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [mode, setMode] = useState("login"); // login || register ; need only if user===null
+    const [users, setUsers] = useState([]);
 
     const [accessToken, setAccessToken] = useState(localStorage.getItem("accessToken"));
     const [refreshToken, setRefreshToken] = useState(localStorage.getItem("refreshToken"));
-
-    useEffect(() => {
-        loadProducts();
-    }, []);
 
     const loadProducts = async () => {
         try {
@@ -38,6 +39,18 @@ export default function ProductsPage() {
             setLoading(false);
         }
     };
+
+    const loadUsers = async () => {
+        try {
+            api.getAllUsers().then((data) =>
+                setUsers(data)
+            ).catch((err)=>{
+                console.log(err)
+            });
+        } catch (err) {
+            console.log(err);
+        }
+    }
 
     const openCreate = () => {
         setModalMode("create");
@@ -87,6 +100,19 @@ export default function ProductsPage() {
         }
     };
 
+    const handleUserModal = async (payload) => {
+        try {
+            const updatedUser = await api.updateUser(payload.id, payload);
+            setUsers((prev) =>
+                prev.map((u) => (u.id === payload.id ? updatedUser : u))
+            );
+            setEditingUser(null);
+        } catch (err) {
+            console.error(err);
+            alert("Ошибка сохранения пользователя");
+        }
+    };
+
     const loginUser = async (username, login) => {
         try {
             const data = await api.logUser(username, login);
@@ -112,12 +138,9 @@ export default function ProductsPage() {
 
     useEffect(() => {
         if (localStorage.getItem("accessToken") !== accessToken) {
-            if (accessToken!==null)
+            if (accessToken !== null)
                 localStorage.setItem("accessToken", accessToken);
             else localStorage.removeItem("accessToken");
-            if (refreshToken!==null)
-                localStorage.setItem("refreshToken", refreshToken);
-            else localStorage.removeItem("refreshToken");
         }
         try {
             api.getMe(username).then((data) => {
@@ -127,9 +150,21 @@ export default function ProductsPage() {
                 console.log("eggog");
             })
         } catch (err) {
-            console.log(err);
+            console.log(err); // а этот код доступен?
         }
-    }, [accessToken, refreshToken]);
+        if (accessToken) {
+            loadProducts();
+            loadUsers();
+        }
+    }, [accessToken]);
+
+    useEffect(() => {
+        if (localStorage.getItem("refreshToken") !== refreshToken) {
+            if (refreshToken !== null)
+                localStorage.setItem("refreshToken", refreshToken);
+            else localStorage.removeItem("refreshToken");
+        }
+    }, [refreshToken]);
 
     let refreshInFlight = null;
 
@@ -157,7 +192,7 @@ export default function ProductsPage() {
                             .post("/auth/refresh",
                                 {
                                     "refreshToken": refreshToken,
-                                })
+                                }, { _retry: true })
                             .then((r) => r.data)
                             .finally(() => {
                                 refreshInFlight = null;
@@ -167,17 +202,21 @@ export default function ProductsPage() {
                     // tokens = { accessToken, refreshToken }
                     const tokens = await refreshInFlight;
                     setAccessToken(tokens.accessToken);
+                    // из-за того что set срабатывает не сразу, необходимо выставить вручную для корректной обработки запроса
+                    localStorage.setItem("refreshToken", tokens.refreshToken)
                     setRefreshToken(tokens.refreshToken);
 
                     // Повторяем исходный запрос уже с новым accessToken
                     originalRequest.headers.Authorization = `Bearer ${tokens.accessToken}`;
-                    return apiClient(originalRequest);
+                    return api.apiClient(originalRequest);
                 } catch (refreshErr) {
                     // refresh не сработал → чистим токены и "отдаём" ошибку наверх
                     setAccessToken(null);
                     setRefreshToken(null);
                     return Promise.reject(refreshErr);
                 }
+            } else if (status === 401) {
+                console.log(status === 401, originalRequest, !originalRequest._retry)
             }
 
             return Promise.reject(error);
@@ -198,7 +237,7 @@ export default function ProductsPage() {
                         <h1 className="title">Профиль</h1>
                     </div>
                     {user === null ? (
-                        <div>
+                        <>
                             <p>Для продолжения авторизуйтесь или зарегистрируйтесь</p>
                             <label>Имя пользователя
                                 <input className="input" onChange={(e) => setUsername(e.target.value)}></input>
@@ -227,25 +266,44 @@ export default function ProductsPage() {
                                     </label>
                                 </div>
                             )}
-                        </div>
+                        </>
                     )
-                        : (<UserCard user={user} setAccessToken={setAccessToken} setRefreshToken={setRefreshToken} />)
+                        :
+                        <>
+                            <UserCard user={user} setAccessToken={setAccessToken} setRefreshToken={setRefreshToken} />
+                            {user.role === 'admin' &&
+                                <>
+                                    <div className="toolbar">
+                                        <h1 className="title">Пользователи</h1>
+                                    </div>
+                                    {//блять как же меня заебали эти set они никогда блядь не работают вовремя а постоянно спустя пол года. я уже заебался дебажить состояние гонки я хочу нормального последовательного выполнения реакт иди нахуй
+                                        // а всё норм это я долбоёб
+                                    }
+                                    {users.map((u) =>
+                                        <UserItem key={u.id} user={u} setEditingUser={setEditingUser} />
+                                    )}
+                                </>
+                            }
+                            <div className="toolbar">
+                                <h1 className="title">Товары</h1>
+                                {['seller', 'admin'].includes(user.role) &&
+                                    <button className="btn btn--primary" onClick={openCreate}>
+                                        + Создать
+                                    </button>
+                                }
+                            </div>
+                            {loading ? (
+                                <div className="empty">Загрузка...</div>
+                            ) : (
+                                <ProductsList
+                                    products={products}
+                                    onEdit={openEdit}
+                                    onDelete={handleDelete}
+                                    role={user.role}
+                                />
+                            )}
+                        </>
                     }
-                    <div className="toolbar">
-                        <h1 className="title">Товары</h1>
-                        <button className="btn btn--primary" onClick={openCreate}>
-                            + Создать
-                        </button>
-                    </div>
-                    {loading ? (
-                        <div className="empty">Загрузка...</div>
-                    ) : (
-                        <ProductsList
-                            products={products}
-                            onEdit={openEdit}
-                            onDelete={handleDelete}
-                        />
-                    )}
                 </div>
             </main>
             <footer className="footer">
@@ -259,6 +317,7 @@ export default function ProductsPage() {
                 onClose={closeModal}
                 onSubmit={handleSubmitModal}
             />
+            <UserModal inititalUser={editingUser} onClose={() => setEditingUser(null)} onSubmit={handleUserModal} />
         </div>
     );
 }

@@ -12,7 +12,6 @@ const onRefresh = async(setAccessToken, setRefreshToken) => {
         setAccessToken(data.accessToken);
         setRefreshToken(data.refreshToken);
     } catch (err) {
-        console.log(err);
         alert("Refresh Error")
     }
 }
@@ -23,6 +22,7 @@ export default function UserCard({ user, setAccessToken, setRefreshToken }) {
             <div className="productMain">
                 <div className="productId">ID: {user.id}</div>
                 <div className="productTitle">{user.username}</div>
+                <div className="productCat">{user.role}</div>
             </div>
 
             <div className="productActions">
