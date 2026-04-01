@@ -1,0 +1,48 @@
+{
+    "name": "Мои заметки",
+    "short_name": "Заметки",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#4285f4",
+    "description": "Простое приложение для заметок, работающее офлайн",
+    "orientation": "portrait-primary",
+    "icons": [
+        {
+            "src": "icons/add_notes_16dp_E3E3E3_FILL0_wght400_GRAD0_opsz20.png",
+            "sizes": "16x16",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/add_notes_32dp_E3E3E3_FILL0_wght400_GRAD0_opsz40.png",
+            "sizes": "32x32",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/add_notes_48dp_E3E3E3_FILL0_wght400_GRAD0_opsz48.png",
+            "sizes": "48x48",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/add_notes_64dp_E3E3E3_FILL0_wght400_GRAD0_opsz48.png",
+            "sizes": "64x64",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/add_notes_128dp_E3E3E3_FILL0_wght400_GRAD0_opsz48.png",
+            "sizes": "128x128",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/add_notes_256dp_E3E3E3_FILL0_wght400_GRAD0_opsz48.png",
+            "sizes": "256x256",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/add_notes_512dp_E3E3E3_FILL0_wght400_GRAD0_opsz48.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable any"
+        }
+    ]
+}

@@ -1,8 +1,16 @@
-const CACHE_NAME = 'notes-cache-v1';
+const CACHE_NAME = 'notes-cache-v3'; 
 const ASSETS = [
     '/',
     '/index.html',
-    '/app.js'
+    '/app.js',
+    '/manifest.json',
+    '/icons/add_notes_16dp_E3E3E3_FILL0_wght400_GRAD0_opsz20.png',
+    '/icons/add_notes_32dp_E3E3E3_FILL0_wght400_GRAD0_opsz40.png',
+    '/icons/add_notes_48dp_E3E3E3_FILL0_wght400_GRAD0_opsz48.png',
+    '/icons/add_notes_64dp_E3E3E3_FILL0_wght400_GRAD0_opsz48.png',
+    '/icons/add_notes_128dp_E3E3E3_FILL0_wght400_GRAD0_opsz48.png',
+    '/icons/add_notes_256dp_E3E3E3_FILL0_wght400_GRAD0_opsz48.png',
+    '/icons/add_notes_512dp_E3E3E3_FILL0_wght400_GRAD0_opsz48.png',
 ];
 
 self.addEventListener('install', event => {

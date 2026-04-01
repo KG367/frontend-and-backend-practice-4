@@ -1,10 +1,24 @@
 <!DOCTYPE html>
 <html lang="ru">
-
 <head>
     <meta charset="UTF-8">
+     <!-- Web App Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+    
+    <!-- Для Android -->
+    <meta name="mobile-web-app-capable" content="yes">
+    
+    <!-- Цвет темы для браузера -->
+    <meta name="theme-color" content="#4285f4">
+    
+    <!-- Для iOS (иконка на домашний экран) -->
+    <link rel="apple-touch-icon" href="/icons/add_notes_512dp_E3E3E3_FILL0_wght400_GRAD0_opsz48.png">
+    
+    <!-- Для iOS (статус бар) -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Заметки (13-18)</title>
     <link rel="stylesheet" href="https://unpkg.com/chota@latest">
+    <link rel="icon" href="icons/add_notes_16dp_E3E3E3_FILL0_wght400_GRAD0_opsz20.png" sizes="16x16" type="image/ico">
 </head>
 
 <body>
@@ -17,5 +31,4 @@
 
     <script src="app.js"></script>
 </body>
-
 </html>
