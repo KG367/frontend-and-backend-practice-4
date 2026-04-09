@@ -78,10 +78,12 @@ async function cacheFirst(request) {
   try {
     const res = await fetch(request);
 
-    const clone = res.clone()
-    caches.open(CACHE_NAME).then(cache => {
-      cache.put(request, clone);
-    });
+    if (request.method === 'GET' && !request.url.startsWith("/socket.io/")) {
+      const clone = res.clone()
+      caches.open(CACHE_NAME).then(cache => {
+        cache.put(request, clone);
+      });
+    }
 
     return res;
   } catch {
@@ -90,3 +92,20 @@ async function cacheFirst(request) {
     });
   }
 }
+
+self.addEventListener('push', (event) => {
+  let data = { title: 'Новое уведомление', body: '', reminderId: null };
+  if (event.data) {
+    data = event.data.json();
+  }
+  
+  const options = {
+    body: data.body,
+    icon: '/icons/add_notes_128dp_E3E3E3_FILL0_wght400_GRAD0_opsz48.png',
+    badge: '/icons/add_notes_48dp_E3E3E3_FILL0_wght400_GRAD0_opsz48.png',
+    data: { reminderId: data.reminderId } // для идентификации в click
+  };
+  event.waitUntil(
+    self.registration.showNotification(data.title, options)
+  );
+});
