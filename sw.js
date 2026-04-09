@@ -105,7 +105,32 @@ self.addEventListener('push', (event) => {
     badge: '/icons/add_notes_48dp_E3E3E3_FILL0_wght400_GRAD0_opsz48.png',
     data: { reminderId: data.reminderId } // для идентификации в click
   };
+  // Добавляем кнопку только если это напоминание
+  if (data.reminderId) {
+    options.actions = [
+      { action: 'snooze', title: 'Отложить на 5 минут' }
+    ];
+  }
   event.waitUntil(
     self.registration.showNotification(data.title, options)
   );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  const notification = event.notification;
+  const action = event.action;
+
+  if (action === 'snooze') {
+    // Получаем id напоминания из данных уведомления
+    const reminderId = notification.data.reminderId;
+    // Отправляем запрос на сервер для откладывания
+    event.waitUntil(
+      fetch(`/snooze?reminderId=${reminderId}`, { method: 'POST' })
+        .then(() => notification.close())
+        .catch(err => console.error('Snooze failed:', err))
+    );
+  } else {
+    // При клике на само уведомление просто закрываем его
+    notification.close();
+  }
 });
