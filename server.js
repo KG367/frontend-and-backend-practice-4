@@ -1,42 +1,31 @@
-const { Sequelize, DataTypes } = require('sequelize');
+const mongoose = require('mongoose');
 const express = require('express');
+const { integer } = require('check-types');
 const app = express();
+
+// Подключение к MongoDB
+mongoose.connect('mongodb://YourMongoAdmin:1234@172.23.143.48:27017/admin')
+    .then(() => console.log('Connected to MongoDB'))
+    .catch(err => console.error('Connection error:', err));
 
 app.use(express.json());
 
-const sequelize = new Sequelize('postgres', 'postgres', '1', {
-    host: 'localhost',
-    dialect: 'postgres',
-    port: 5433
+const userSchema = new mongoose.Schema({
+    first_name: { type: String, required: true },
+    last_name: { type: String, required: true, unique: true },
+    age: { type: Number },
+    createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: Date.now }
 });
 
-// Проверка подключения
-sequelize.authenticate()
-    .then(() => console.log('Connected to PostgreSQL'))
-    .catch(err => console.error('Connection error:', err));
+userSchema.index({ id: 1 })
 
-const User = sequelize.define(
-    'Пользователь',
-    {
-        id: { type: DataTypes.INTEGER, allowNull: false, unique: true, primaryKey: true, autoIncrement: true },
-        first_name: { type: DataTypes.STRING, allowNull: false },
-        last_name: { type: DataTypes.STRING, allowNull: false },
-        age: { type: DataTypes.INTEGER, allowNull: false },
-    },
-    {
-        timestamps: true,
-        createdAt: "created_at",
-        updatedAt: "updated_at"
-    }
-);
-
-// Синхронизация с БД
-sequelize.sync(); // Опция `force` пересоздает таблицы
+const User = mongoose.model('User', userSchema);
 
 app.post('/users', async (req, res) => {
     try {
-        console.log(req.body);
-        const user = await User.create(req.body);
+        const user = new User(req.body);
+        await user.save();
         res.status(201).send(user);
     } catch (err) {
         res.status(400).send(err.message);
@@ -45,7 +34,7 @@ app.post('/users', async (req, res) => {
 
 app.get('/users', async (req, res) => {
     try {
-        const users = await User.findAll();
+        const users = await User.find();
         res.send(users);
     } catch (err) {
         res.status(500).send(err.message);
@@ -54,19 +43,22 @@ app.get('/users', async (req, res) => {
 
 app.get('/users/:id', async (req, res) => {
     try {
-        const user = await User.findOne({ where: { id: req.params.id } });
-        res.send(user)
+        const user = await User.findById( req.params.id )
+        if (!user) return res.status(404).send('User not found');
+        res.send(user);
     } catch (err) {
         res.status(400).send(err.message);
     }
-});
+})
 
 app.patch('/users/:id', async (req, res) => {
     try {
-        const user = await User.update(req.body, {
-            where: { id: req.params.id },
-            returning: true, // Для PostgreSQL (возвращает обновленную запись)
-        });
+        const user = await User.findByIdAndUpdate(
+            req.params.id,
+            req.body,
+            { new: true } // Возвращает обновленный документ
+        );
+        if (!user) return res.status(404).send('User not found');
         res.send(user);
     } catch (err) {
         res.status(400).send(err.message);
@@ -75,8 +67,9 @@ app.patch('/users/:id', async (req, res) => {
 
 app.delete('/users/:id', async (req, res) => {
     try {
-        await User.destroy({ where: { id: req.params.id } });
-        res.send({ message: 'User deleted' });
+        const user = await User.findByIdAndDelete(req.params.id);
+        if (!user) return res.status(404).send('User not found');
+        res.send(user);
     } catch (err) {
         res.status(500).send(err.message);
     }
